@@ -1,0 +1,4 @@
+- complete timer implementation
+- add headers in thre response
+- make it send error response when an error occurs
+- clean up code

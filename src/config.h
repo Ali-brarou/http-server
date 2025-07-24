@@ -18,7 +18,7 @@ typedef struct Http_config_s {
 
 
 /* not configurable (for now) */ 
-#define HTTP_USE_MEMMEM       /* if defined use memmem function */ 
+
 #define HTTP_REQUEST_SIZE                   8192
 #define HTTP_RESPONSE_SIZE                  8192
 #define HTTP_MAX_HEADERS                    128 

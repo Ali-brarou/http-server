@@ -1,6 +1,6 @@
 CC := gcc
-CFLAGS_DEBUG = -g -O0 -Wall -Wextra -DDEBUG
-CFLAGS_RELEASE = -O2 -Wall -Wextra -DNDEBUG
+CFLAGS_DEBUG = -g -O0 -Wall -Wextra -DDEBUG -DHTTP_USE_MEMMEM
+CFLAGS_RELEASE = -O2 -Wall -Wextra -DNDEBUG -DHTTP_USE_MEMMEM
 
 TARGET := server
 

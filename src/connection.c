@@ -13,7 +13,7 @@
 
 #include "connection.h"
 
-Http_connection_t* http_connection_create(int client_fd, Http_config_t* cfg)
+Http_connection_t* http_connection_create(int client_fd, Http_timer_t* timer, Http_config_t* cfg)
 {
     Http_connection_t* con = malloc(sizeof(Http_connection_t)); 
     if (!con)
@@ -24,21 +24,33 @@ Http_connection_t* http_connection_create(int client_fd, Http_config_t* cfg)
     memset(con, 0, sizeof(Http_connection_t)); 
     con -> client_fd = client_fd; 
     con -> handler = cfg -> handler; 
+
+    if (http_timer_add_timeout(timer, con, HTTP_CLIENT_TIMEOUT) == -1)
+    {
+        free(con); 
+        return NULL; 
+    }
+
     return con; 
 }
 
-void http_connection_clean(Http_connection_t* con)
+void http_connection_clean(Http_connection_t* con, int epoll_fd, Http_timer_t* timer)
 {
+    if (con->timeout_index != -1)
+        http_timer_invalid_timeout(timer, con->timeout_index); 
+    close(con->client_fd); 
+    http_epoll_del_con(epoll_fd, con); 
     free(con); 
 }
 
 
-void http_connection_accept(int epoll_fd, int listen_fd, Http_config_t* config)
+void http_connection_accept(Http_server_context_t* ctx)
 {
-    assert(epoll_fd != -1 && listen_fd != -1); 
+    assert(ctx != NULL); 
+    assert(ctx->epoll_fd != -1 && ctx->listen_fd != -1); 
     struct sockaddr_in client_addr; 
     socklen_t socklen = sizeof(client_addr); 
-    int client_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &socklen) ; 
+    int client_fd = accept(ctx->listen_fd, (struct sockaddr *)&client_addr, &socklen) ; 
     if (client_fd == -1)
     {
         perror("accept"); 
@@ -51,16 +63,15 @@ void http_connection_accept(int epoll_fd, int listen_fd, Http_config_t* config)
         return; 
     }
 
-    Http_connection_t* con = http_connection_create(client_fd, config); 
+    Http_connection_t* con = http_connection_create(client_fd, ctx->timer, ctx->cfg); 
     if (!con)
     {
         close(client_fd); 
         return; 
     }
 
-    if (http_epoll_add_con(epoll_fd, con, EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLHUP) == -1) 
-    {
-        http_connection_clean(con); 
+    if (http_epoll_add_con(ctx->epoll_fd, con, EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLHUP) == -1) 
+    { free(con); 
         close(client_fd); 
         return; 
     }
@@ -97,102 +108,100 @@ static int buffer_process(Http_connection_t* con)
     for (;;) /* process what's in the buffer */ 
     {
         /* reading headers state */ 
-        if (HTTP_GET_READ_STATE(con->flags) == HTTP_READING_HEADERS)
+        switch (HTTP_GET_READ_STATE(con->flags))
         {
-            char* end = NULL; 
-#ifdef HTTP_USE_MEMMEM
-            end = memmem(con->buff, con->buff_len, 
-                    HTTP_HEADER_DELIMITER, HTTP_HEADER_DELIMITER_LEN); 
-#else 
-            for (size_t i = 0; i + HTTP_HEADER_DELIMITER_LEN <= con->buff_len ; i++)
+            case HTTP_READING_HEADERS: 
             {
-                if (!memcmp(con->buff + i, HTTP_HEADER_DELIMITER, HTTP_HEADER_DELIMITER_LEN))
+                char* end = NULL; 
+#ifdef HTTP_USE_MEMMEM
+                end = memmem(con->buff, con->buff_len, 
+                        HTTP_HEADER_DELIMITER, HTTP_HEADER_DELIMITER_LEN); 
+#else 
+                for (size_t i = 0; i + HTTP_HEADER_DELIMITER_LEN <= con->buff_len ; i++)
                 {
-                    end = con->buff + i; 
-                    break; 
+                    if (!memcmp(con->buff + i, HTTP_HEADER_DELIMITER, HTTP_HEADER_DELIMITER_LEN))
+                    {
+                        end = con->buff + i; 
+                        break; 
+                    }
                 }
-            }
 #endif
 
-            if (!end)
-            {
-                if (con->buff_len >= HTTP_REQUEST_SIZE)
+                if (!end)
                 {
-                    HTTP_SET_CLOSING(con->flags); 
+                    if (con->buff_len >= HTTP_REQUEST_SIZE)
+                    {
+                        HTTP_SET_CLOSING(con->flags); 
+                    }
+                    return -1; 
                 }
-                return -1; 
-            }
-            
-            /* can parse the headers now */  
-            con->header_len = end - con->buff + HTTP_HEADER_DELIMITER_LEN;  
-            if (http_request_parse(&con->request, con->buff, con->header_len) == -1)
-            {
-                HTTP_SET_CLOSING(con->flags); 
-                return -1; 
-            }
-            
-            if (con->request.body_len == 0) 
-                HTTP_SET_READ_STATE(con->flags, HTTP_REQUEST_READY); 
-            else 
-            {
-                if (con->request.body_len >= HTTP_REQUEST_SIZE - con->header_len)
+                
+                /* can parse the headers now */  
+                con->header_len = end - con->buff + HTTP_HEADER_DELIMITER_LEN;  
+                if (http_request_parse(&con->request, con->buff, con->header_len) == -1)
                 {
                     HTTP_SET_CLOSING(con->flags); 
                     return -1; 
                 }
-                con->request.body = &con->buff[con->header_len]; 
-                con->body_len = con->request.body_len;  
-                HTTP_SET_READ_STATE(con->flags, HTTP_READING_BODY); 
+                
+                if (con->request.body_len == 0) 
+                    HTTP_SET_READ_STATE(con->flags, HTTP_REQUEST_READY); 
+                else 
+                {
+                    if (con->request.body_len >= HTTP_REQUEST_SIZE - con->header_len)
+                    {
+                        HTTP_SET_CLOSING(con->flags); 
+                        return -1; 
+                    }
+                    con->request.body = &con->buff[con->header_len]; 
+                    con->body_len = con->request.body_len;  
+                    HTTP_SET_READ_STATE(con->flags, HTTP_READING_BODY); 
+                }
             }
-        }
-
-        if (HTTP_GET_READ_STATE(con->flags) == HTTP_READING_BODY)
-        {
+            break; 
+            case HTTP_READING_BODY: 
             /* succesfully recieved full body */  
             if (con->buff_len - con->header_len >= con->body_len) 
             {
                 HTTP_SET_READ_STATE(con->flags, HTTP_REQUEST_READY); 
             }
-        }
+            break; 
+            case HTTP_REQUEST_READY: 
+            {
+                /* make the handler create a response */ 
+                Http_response_t response; 
+                memset(&response, 0, sizeof response); 
+                if (con->handler(&con->request, &response) == HTTP_HANDLER_ERR)
+                {
+                    HTTP_SET_CLOSING(con->flags); 
+                    return -1; 
+                }
+                int used = http_response_raw(&response, con->response + con->response_len, HTTP_RESPONSE_SIZE - con->response_len); 
+                if (used == -1)
+                {
+                    HTTP_SET_CLOSING(con->flags); 
+                    return -1; 
+                }
+                con->response_len += used; 
+                HTTP_SET_WRITING(con->flags); 
+                if (response.connection_close)
+                {
+                    HTTP_SET_SHOULD_CLOSE(con->flags); 
+                    return -1; 
+                }
+                else
+                {
+                    /* reset buffer */  
+                    size_t remains = con->buff_len - con->header_len - con->body_len; 
+                    if (remains > 0)
+                        memmove(con->buff, con->buff + con->body_len + con->header_len, remains); 
+                    HTTP_SET_READ_STATE(con->flags, HTTP_READING_HEADERS); 
+                    con->buff_len = remains; 
+                    con->body_len = 0; 
+                    }
+            }
+            break; 
 
-        /* request ready state */  
-        if (HTTP_GET_READ_STATE(con->flags) == HTTP_REQUEST_READY)
-        {
-            /* make the handler create a response */ 
-            Http_response_t response; 
-            memset(&response, 0, sizeof response); 
-            if (con->handler(&con->request, &response) == HTTP_HANDLER_ERR)
-            {
-                HTTP_SET_CLOSING(con->flags); 
-                return -1; 
-            }
-            int used = http_response_raw(&response, con->response + con->response_len, HTTP_RESPONSE_SIZE - con->response_len); 
-            if (used == -1)
-            {
-                HTTP_SET_CLOSING(con->flags); 
-                return -1; 
-            }
-            con->response_len += used; 
-            HTTP_SET_WRITING(con->flags); 
-            if (response.connection_close)
-            {
-                HTTP_SET_SHOULD_CLOSE(con->flags); 
-                return -1; 
-            }
-            else
-            {
-                /* reset buffer */  
-                size_t remains = con->buff_len - con->header_len - con->body_len; 
-                if (remains > 0)
-                    memmove(con->buff, con->buff + con->body_len + con->header_len, remains); 
-                HTTP_SET_READ_STATE(con->flags, HTTP_READING_HEADERS); 
-                con->buff_len = remains; 
-                con->body_len = 0; 
-            }
-        }
-        if (HTTP_IS_CLOSING(con->flags) || HTTP_SHOULD_CLOSE(con->flags))
-        {
-            return -1; 
         }
     }
     return 0; 

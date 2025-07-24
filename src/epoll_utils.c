@@ -53,10 +53,38 @@ int http_epoll_add_fd(int epoll_fd, Http_epoll_item_type_t type, int fd, uint32_
     return 0; 
 }
 
+int http_epoll_add_timer(int epoll_fd, Http_timer_t* timer, uint32_t events)
+{
+    assert(epoll_fd != -1); 
+    assert(timer != NULL); 
+    int timer_fd = timer->fd;  
+    struct epoll_event ev; 
+    ev.events = events; 
+    Http_epoll_item_t* item = malloc(sizeof(Http_epoll_item_t)); 
+    if (!item)
+    {
+        perror("malloc"); 
+        return -1; 
+    }
+     
+    item->type = HTTP_ITEM_TIMER, 
+    item->timer  = timer; 
+
+    ev.data.ptr = item; 
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, timer_fd, &ev) == -1)
+    {
+        perror("epoll_ctl"); 
+        free(item); 
+        return -1; 
+    }
+
+    return 0; 
+}
+
 int http_epoll_add_con(int epoll_fd, Http_connection_t* con, uint32_t events)
 {
-    if (epoll_fd == -1 || !con)
-        return -1; 
+    assert(epoll_fd != -1); 
+    assert(con != NULL); 
     int client_fd = con->client_fd; 
     struct epoll_event ev; 
     ev.events = events; 
@@ -96,19 +124,22 @@ int http_epoll_mod_con(int epoll_fd, Http_epoll_item_t* con_item, uint32_t event
     return 0; 
 }
 
+void http_epoll_del_con(int epoll_fd, Http_connection_t* con)
+{
+    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, con->client_fd, NULL); 
+}
+
 typedef enum {
     HANDLE_SHUTDOWN,  
     HANDLE_CONTINUE, 
     HANDLE_ERROR, 
 } Handle_result; 
 
-static Handle_result handle_item_event(int epoll_fd, Http_epoll_item_t* item, 
-                                        uint32_t events, Http_config_t* config); 
-static void handle_client(int epoll_fd, Http_epoll_item_t* con_item, uint32_t events); 
-static void close_client(int epoll_fd, Http_epoll_item_t* con_item); 
+static Handle_result handle_item_event(Http_server_context_t* ctx, Http_epoll_item_t* item, uint32_t events); 
+static void handle_client(Http_server_context_t* ctx, Http_epoll_item_t* con_item, uint32_t events); 
+static void close_client(int epoll_fd, Http_epoll_item_t* con_item, Http_timer_t* timer); 
 
-static Handle_result handle_item_event(int epoll_fd, Http_epoll_item_t* item, 
-                                        uint32_t events, Http_config_t* config)
+static Handle_result handle_item_event(Http_server_context_t* ctx, Http_epoll_item_t* item, uint32_t events)
 {
     switch (item->type)
     {
@@ -121,13 +152,31 @@ static Handle_result handle_item_event(int epoll_fd, Http_epoll_item_t* item,
         }
         case HTTP_ITEM_LISTENER: /* it's a new connection */  
         {
-            int listen_fd = item->fd; 
-            http_connection_accept(epoll_fd, listen_fd, config); 
+            http_connection_accept(ctx); 
             return HANDLE_CONTINUE; 
         } 
         case HTTP_ITEM_CLIENT: /* handle a client */  
         {
-            handle_client(epoll_fd, item, events); 
+            handle_client(ctx, item, events); 
+            return HANDLE_CONTINUE; 
+        }
+        case HTTP_ITEM_TIMER: 
+        {
+            int timer_fd = item->timer->fd; 
+            uint64_t u; 
+            read(timer_fd, &u, sizeof u); 
+            Http_timer_event_t event; 
+            if (http_timer_pop_recent(item->timer, &event) == -1)
+            {
+                return HANDLE_ERROR; 
+            }
+            
+            if (event.flag == HTTP_TIMER_EVENT_VALID)
+            {
+                event.con->timeout_index = -1; 
+                http_connection_clean(event.con, ctx->epoll_fd, ctx->timer); 
+            }
+
             return HANDLE_CONTINUE; 
         }
         default: 
@@ -136,17 +185,17 @@ static Handle_result handle_item_event(int epoll_fd, Http_epoll_item_t* item,
     }
 }
 
-static void handle_client(int epoll_fd, Http_epoll_item_t* con_item, uint32_t events) 
+static void handle_client(Http_server_context_t* ctx, Http_epoll_item_t* con_item, uint32_t events)
 {
     Http_connection_t* con = con_item->con; 
 
     if (events & EPOLLIN)
     {
         http_connection_read(con); 
-        http_connection_update_events(epoll_fd, con_item); 
+        http_connection_update_events(ctx->epoll_fd, con_item); 
         if (HTTP_IS_CLOSING(con->flags))
         {
-            close_client(epoll_fd, con_item); 
+            close_client(ctx->epoll_fd, con_item, ctx->timer); 
             return; /* no need to check if client has closed connection */ 
         }
     }
@@ -154,31 +203,31 @@ static void handle_client(int epoll_fd, Http_epoll_item_t* con_item, uint32_t ev
     if (events & EPOLLOUT)
     {
         http_connection_write(con); 
-        http_connection_update_events(epoll_fd, con_item); 
+        http_connection_update_events(ctx->epoll_fd, con_item); 
         if (HTTP_IS_CLOSING(con->flags))
         {
-            close_client(epoll_fd, con_item); 
+            close_client(ctx->epoll_fd, con_item, ctx->timer); 
             return; /* no need to check if client has closed connection */ 
         }
     }
     /* client has closed connection or connection is dead */ 
     if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) 
     {
-        close_client(epoll_fd, con_item); 
+        close_client(ctx->epoll_fd, con_item, ctx->timer); 
     }
 }
 
-static void close_client(int epoll_fd, Http_epoll_item_t* con_item)
+static void close_client(int epoll_fd, Http_epoll_item_t* con_item, Http_timer_t* timer)
 {
-    close(con_item->con->client_fd); 
-    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, con_item->con->client_fd, NULL); 
-    http_connection_clean(con_item->con); 
+    assert(con_item->type == HTTP_ITEM_CLIENT); 
+
+    http_connection_clean(con_item->con, epoll_fd, timer); 
     free(con_item); 
 }
 
-int http_epoll_run_loop(int epoll_fd, Http_config_t* cfg)
+int http_epoll_run_loop(Http_server_context_t* ctx)
 {
-    struct epoll_event *events = calloc(cfg->max_events, sizeof(struct epoll_event)); 
+    struct epoll_event *events = calloc(ctx->cfg->max_events, sizeof(struct epoll_event)); 
     if (!events)
     {
         perror("calloc"); 
@@ -187,7 +236,7 @@ int http_epoll_run_loop(int epoll_fd, Http_config_t* cfg)
 
     for (;;)
     {
-        int nfds = epoll_wait(epoll_fd, events, cfg->max_events, -1); 
+        int nfds = epoll_wait(ctx->epoll_fd, events, ctx->cfg->max_events, -1); 
         if (nfds < 0)
         {
             if (errno == EINTR) 
@@ -200,19 +249,19 @@ int http_epoll_run_loop(int epoll_fd, Http_config_t* cfg)
             Http_epoll_item_t* item = events[i].data.ptr; 
             assert(item != NULL); 
 
-            Handle_result result = handle_item_event(epoll_fd, item, events[i].events, cfg); 
+            Handle_result result = handle_item_event(ctx, item, events[i].events); 
             switch (result)
             {
-                    case HANDLE_SHUTDOWN:
-                        goto shutdown; 
+                case HANDLE_SHUTDOWN:
+                    goto shutdown; 
 
-                    case HANDLE_ERROR:
-                        fprintf(stderr, "Error handling event\n");
-                        goto shutdown; 
+                case HANDLE_ERROR:
+                    fprintf(stderr, "Error handling event\n");
+                    goto shutdown; 
 
-                    case HANDLE_CONTINUE:
-                    default:
-                        break;
+                case HANDLE_CONTINUE:
+                default:
+                    break;
             }
         }
     }

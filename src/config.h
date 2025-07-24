@@ -23,7 +23,7 @@ typedef struct Http_config_s {
 #define HTTP_RESPONSE_SIZE                  8192
 #define HTTP_MAX_HEADERS                    128 
 #define HTTP_CLIENT_TIMEOUT                 30
-#define HTTP_TIMER_MAX_EVENTS               1024
+#define HTTP_TIMER_MAX_EVENTS               819200 
 
 /* configurable */ 
 #define HTTP_DEFAULT_PORT                   6969

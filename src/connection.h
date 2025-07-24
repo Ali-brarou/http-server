@@ -1,11 +1,13 @@
 #ifndef CONNECTION_H
 #define CONNECTION_H
 
+#include "server_context.h"
 #include "config.h"
 #include "utils.h"
 #include "http_parser.h"
 #include "http_response.h"
 #include "epoll_utils.h"
+#include "timer.h"
 #include "http_handler.h"
 
 /* forward declaration */ 
@@ -41,6 +43,7 @@ typedef struct Http_epoll_item_s Http_epoll_item_t;
 
 typedef struct Http_connection_s {
     int     client_fd; 
+    int     timeout_index; /* keep track of where is timeout event in timer events array */
 
     Http_request_t request; 
     size_t header_len; 
@@ -57,11 +60,11 @@ typedef struct Http_connection_s {
     Http_handler handler; 
 } Http_connection_t; 
 
-Http_connection_t* http_connection_create(int client_fd, Http_config_t* cfg); /* NULL if can't allocate memory */
-void http_connection_clean(Http_connection_t* con);
+Http_connection_t* http_connection_create(int client_fd, Http_timer_t* timer, Http_config_t* cfg); /* NULL if can't allocate memory */
+void http_connection_clean(Http_connection_t* con, int epoll_fd, Http_timer_t* timer);
 void http_connection_close(int epoll_fd, Http_connection_t* con); 
 
-void http_connection_accept(int epoll_fd, int listen_fd, Http_config_t* config); 
+void http_connection_accept(Http_server_context_t* ctx); 
 void http_connection_read(Http_connection_t* con); 
 void http_connection_write(Http_connection_t* con); 
 void http_connection_update_events(int epoll_fd, Http_epoll_item_t* con_item); 

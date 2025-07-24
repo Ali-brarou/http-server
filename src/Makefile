@@ -1,11 +1,26 @@
 CC := gcc
-CFLAGS := -Wall -Wextra -O2
+CFLAGS_DEBUG = -g -O0 -Wall -Wextra -DDEBUG
+CFLAGS_RELEASE = -O2 -Wall -Wextra -DNDEBUG
 
 TARGET := server
 
 SRC := main.c server.c utils.c epoll_utils.c connection.c http_parser.c http_response.c timer.c
 
+BUILD ?= release
+
+ifeq ($(BUILD),debug)
+	CFLAGS = $(CFLAGS_DEBUG)
+else
+	CFLAGS = $(CFLAGS_RELEASE)
+endif
+
 all: $(TARGET)
+
+debug: 
+	$(MAKE) BUILD=debug
+
+release: 
+	$(MAKE) BUILD=release
 
 $(TARGET): $(SRC)
 	$(CC) $(CFLAGS) $^ -o $(TARGET)

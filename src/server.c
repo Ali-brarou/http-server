@@ -18,55 +18,69 @@ void http_server_init(void)
 int http_server_run(Http_config_t* config)
 {
     if (!config)
+    {
+        fprintf(stderr, "Error: no config was provided\n") ;
         return EXIT_FAILURE; 
+    }
     if (!config->handler)
     {
         fprintf(stderr, "Error: No HTTP handler set in config\n"); 
         return EXIT_FAILURE; 
     }
-    http_server_init();
 
-    int server_fd = http_server_setup(config);
-    if (server_fd == -1)
+    Http_server_context_t ctx; 
+
+    http_server_init();
+    ctx.cfg = config; 
+
+    ctx.listen_fd = http_server_setup(config);
+    if (ctx.listen_fd == -1)
     {
         fprintf(stderr, "Error: failed getting listening socket\n");
         return EXIT_FAILURE;
     }
 
-    int timer_fd = http_timer_create(); 
-    if (timer_fd == -1)
-    {
-        fprintf(stderr, "Error :failed creating timer\n"); 
-        return EXIT_FAILURE; 
-    }
 
-    int epoll_fd = http_epoll_create_instance();
-    if (epoll_fd == -1)
+    ctx.epoll_fd = http_epoll_create_instance();
+    if (ctx.epoll_fd == -1)
     {
         fprintf(stderr, "Error: failed creating epoll instance\n");
         return EXIT_FAILURE;
     }
 
-    if (http_shutdown_setup(epoll_fd) == -1)
+    if (http_shutdown_setup(ctx.epoll_fd) == -1)
     {
         fprintf(stderr, "Error: failed setting up shutdown event\n");
         return EXIT_FAILURE;
     }
+    
+    ctx.timer = http_timer_create(); 
+    if (!ctx.timer)
+    {
+        fprintf(stderr, "error :failed creating timer\n"); 
+        return EXIT_FAILURE; 
+    }
+
+    if (http_epoll_add_timer(ctx.epoll_fd, ctx.timer, EPOLLET | EPOLLIN) == -1)
+    {
+        fprintf(stderr, "error :failed adding timer to epoll\n"); 
+        return EXIT_FAILURE; 
+    }
 
     printf("server listening on %s:%d\n", config->host, config->port);
 
-    if (http_epoll_add_fd(epoll_fd, HTTP_ITEM_LISTENER, server_fd, EPOLLIN) == -1)
+    if (http_epoll_add_fd(ctx.epoll_fd, HTTP_ITEM_LISTENER, ctx.listen_fd, EPOLLIN) == -1)
     {
         return EXIT_FAILURE;
     }
 
     /* main loop */
-    http_epoll_run_loop(epoll_fd, config);
+    http_epoll_run_loop(&ctx); 
 
     /* clean up */
-    http_epoll_close(epoll_fd);
-    http_timer_close(timer_fd); 
-    http_server_close(server_fd);
+    http_epoll_close(ctx.epoll_fd);
+    http_timer_clean(ctx.timer); 
+    http_server_close(ctx.listen_fd);
     http_shutdown_close();
     http_server_clean();
 

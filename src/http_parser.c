@@ -1,3 +1,4 @@
+#include <assert.h> 
 #include <ctype.h> 
 #include <string.h> 
 #include <strings.h> 
@@ -77,7 +78,9 @@ static int parse_request_headers(Http_request_t* request, char* raw, size_t raw_
 /* strict parser (•`╭╮´•) */  
 int http_request_parse(Http_request_t* request, char* request_raw, size_t request_raw_len)
 {
-    if (!request || !request_raw || request_raw_len < MIN_RAW_REQUEST_SIZE)  
+    assert(request != NULL); 
+    assert(request_raw != NULL); 
+    if (request_raw_len < MIN_RAW_REQUEST_SIZE)
         return -1; 
     memset(request, 0, sizeof(Http_request_t)); 
     int offset; 

@@ -38,8 +38,8 @@ void http_connection_clean(Http_connection_t* con, int epoll_fd, Http_timer_t* t
 {
     if (con->timeout_index != -1)
         http_timer_invalid_timeout(timer, con->timeout_index); 
-    close(con->client_fd); 
     http_epoll_del_con(epoll_fd, con); 
+    close(con->client_fd); 
     free(con); 
 }
 
@@ -177,6 +177,7 @@ static int buffer_process(Http_connection_t* con)
                     return -1; 
                 }
                 int used = http_response_raw(&response, con->response + con->response_len, HTTP_RESPONSE_SIZE - con->response_len); 
+                http_response_free(&response); 
                 if (used == -1)
                 {
                     HTTP_SET_CLOSING(con->flags); 

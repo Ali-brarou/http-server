@@ -2,7 +2,6 @@
 #define HTTP_RESPONSE_H
 
 #include "config.h"
-#include "http_common.h"
 #include "connection.h"
 
 #define HTTP_MAX_STATUS_CODE 599
@@ -52,10 +51,17 @@ typedef enum Http_memory_flag_e {
     HTTP_MEM_OWNED, 
 } Http_memory_flag_t; 
 
+typedef struct {
+    char* key;
+    char* value;
+    Http_memory_flag_t key_mem;
+    Http_memory_flag_t value_mem;
+} Http_response_header_t;
+
 typedef struct Http_response_s {
     int status_code; 
     Http_content_type_t content_type; 
-    Http_header_t headers[HTTP_MAX_HEADERS]; 
+    Http_response_header_t headers[HTTP_MAX_HEADERS]; 
     size_t headers_count; 
     char* body; 
     size_t body_len; 
@@ -63,7 +69,10 @@ typedef struct Http_response_s {
     int connection_close; 
 } Http_response_t; 
 
+void http_response_make_error(Http_response_t* resp, int status_code); 
 /* returns -1 if an error or the used size if everything is ok */ 
-int http_response_raw(const Http_response_t* resp, char* buffer, size_t buffer_len); 
+int  http_response_raw(const Http_response_t* resp, char* buffer, size_t buffer_len); 
+/* response won't be free if the handler returned error */ 
+void http_response_free(Http_response_t* resp); 
 
 #endif

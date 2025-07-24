@@ -2,6 +2,7 @@
 #include <unistd.h> 
 #include <getopt.h> 
 #include <string.h> 
+#include <strings.h> 
 #include <stdlib.h> 
 #include <signal.h> 
 #include <sys/epoll.h> 
@@ -11,7 +12,7 @@
 void print_help(char* program_name); 
 void parse_arguments(int argc, char* argv[], Http_config_t* config); 
 void sigint_handler(int sig); 
-Http_handler_result_t handler(const Http_request_t* req, Http_response_t* resp); 
+Http_handler_result_t handler(Http_request_t* req, Http_response_t* resp); 
 
 int main(int argc, char* argv[])
 {
@@ -36,15 +37,37 @@ void print_help(char* program_name)
 
 /* this is a simple http handler example */ 
 #define BODY "<html><head><title>this shit works</title></head><body>Hello, browser!</body></html>"
-Http_handler_result_t handler(const Http_request_t* req, Http_response_t* resp)
+Http_handler_result_t handler(Http_request_t* req, Http_response_t* resp)
 {
-    (void)req; /* request is ignored in this simple example */ 
+    if (strcmp(req->path, "/"))
+    {
+        http_response_make_error(resp, HTTP_NOT_FOUND); 
+        return HTTP_HANDLER_OK; 
+    }
+    if (req->method != HTTP_METHOD_GET)
+    {
+        http_response_make_error(resp, HTTP_METHOD_NOT_ALLOWED); 
+        return HTTP_HANDLER_OK; 
+    }
+
     resp->status_code = HTTP_OK; 
+
     resp->content_type = HTTP_CONTENT_TEXT_HTML; 
     resp->body = BODY;  
     resp->body_len = strlen(BODY); 
     resp->body_mem = HTTP_MEM_STATIC; /* tell the server to not free body buffer */ 
-    resp->connection_close = 1;       /* close connection after response */  
+
+    resp->headers[0].key = "test"; 
+    resp->headers[0].key_mem = HTTP_MEM_STATIC; 
+    resp->headers[0].value = "test"; 
+    resp->headers[0].value_mem = HTTP_MEM_STATIC; 
+    resp->headers_count = 1; 
+
+    resp->connection_close = 0;       
+    char* connection = http_request_search_header(req, "connection"); 
+    if (connection == NULL || strcasecmp(connection, "keep-alive"))
+        resp->connection_close = 1;       /* close connection after response */  
+
     return HTTP_HANDLER_OK; 
 }
 

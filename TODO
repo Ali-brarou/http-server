@@ -1,5 +1,4 @@
 - potentiel use after free if both timeout and user handle happened at the same time
-- add headers in thre response
 - make it send error response when an error occurs
 - clean up code
 - maybe do some optimization for the heap allocation 

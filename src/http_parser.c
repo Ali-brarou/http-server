@@ -26,7 +26,7 @@ Http_method_t http_method_from_string(char* str)
 
     for (size_t i = 0; i < http_methods_table_size; i++)
     {
-        if (!strcasecmp(http_methods_table[i].name, str)) /* http methods are case insensitive */ 
+        if (!strcmp(http_methods_table[i].name, str)) /* http methods are case sensitive */ 
             return http_methods_table[i].method; 
     }
 

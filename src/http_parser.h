@@ -5,7 +5,13 @@
 
 #include "utils.h"
 #include "config.h"
-#include "http_common.h"
+
+#define HTTP_VERSION_SIZE 4
+
+typedef struct Http_header_s {
+    char* key;
+    char* value;
+} Http_header_t;
 
 #define HTTP_METHOD_LAST HTTP_METHOD_PATCH
 typedef enum Http_method_e {

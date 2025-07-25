@@ -7,8 +7,6 @@
 typedef struct Http_connection_s Http_connection_t; 
 
 /* I will implement a simple min heap for timer */ 
-/* I think a simple queue will be faster since client timeout is constant */ 
-/* I dont know if it's faster to make events pointer pointer so swapping will be faster or not */ 
 
 typedef enum Http_timer_event_flag_e {
     HTTP_TIMER_EVENT_INVALID    = 0, 

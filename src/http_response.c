@@ -57,8 +57,15 @@ void http_response_make_error(Http_response_t* resp, int status_code)
 {
     assert(resp != NULL); 
     memset(resp, 0, sizeof(Http_response_t)); 
+
     resp->status_code = status_code; 
-    resp->content_type = HTTP_CONTENT_NONE; 
+
+    resp->content_type = HTTP_CONTENT_TEXT_PLAIN; 
+    const char* status_reason = http_status_reason_phrase(resp->status_code); 
+    resp->body = (char*)status_reason;  /* please don't kill me */ 
+    resp->body_len = strlen(status_reason); 
+    resp->body_mem = HTTP_MEM_STATIC; 
+
     resp->connection_close = 1; 
 }
 

@@ -13,7 +13,15 @@
 
 #include "connection.h"
 
-Http_connection_t* http_connection_create(int client_fd, Http_timer_t* timer, Http_config_t* cfg)
+static Http_connection_t* http_connection_create(int client_fd, Http_timer_t* timer, Http_config_t* cfg); 
+static int buffer_process(Http_connection_t* con); 
+static void socket_drain(Http_connection_t* con); 
+static void write_error_response(Http_connection_t* con, int status_code); 
+
+
+
+/* null if can't allocate memory */ 
+static Http_connection_t* http_connection_create(int client_fd, Http_timer_t* timer, Http_config_t* cfg)
 {
     Http_connection_t* con = malloc(sizeof(Http_connection_t)); 
     if (!con)
@@ -22,8 +30,8 @@ Http_connection_t* http_connection_create(int client_fd, Http_timer_t* timer, Ht
         return NULL; 
     }
     memset(con, 0, sizeof(Http_connection_t)); 
-    con -> client_fd = client_fd; 
-    con -> handler = cfg -> handler; 
+    con->client_fd = client_fd; 
+    con->handler = cfg->handler; 
 
     if (http_timer_add_timeout(timer, con, HTTP_CLIENT_TIMEOUT) == -1)
     {
@@ -34,13 +42,15 @@ Http_connection_t* http_connection_create(int client_fd, Http_timer_t* timer, Ht
     return con; 
 }
 
-void http_connection_clean(Http_connection_t* con, int epoll_fd, Http_timer_t* timer)
+void http_connection_clean(Http_server_context_t* ctx, Http_connection_t* con)
 {
     if (con->timeout_index != -1)
-        http_timer_invalid_timeout(timer, con->timeout_index); 
-    http_epoll_del_con(epoll_fd, con); 
+        http_timer_invalid_timeout(ctx->timer, con->timeout_index); 
+    http_epoll_del_con(ctx->epoll_fd, con); 
     close(con->client_fd); 
     free(con); 
+
+    ctx->active_clients--; 
 }
 
 
@@ -75,6 +85,24 @@ void http_connection_accept(Http_server_context_t* ctx)
         close(client_fd); 
         return; 
     }
+
+    ctx->active_clients++; 
+}
+
+static void write_error_response(Http_connection_t* con, int status_code)
+{
+    HTTP_SET_SHOULD_CLOSE(con->flags); 
+
+    Http_response_t response; 
+    http_response_make_error(&response, status_code); 
+    /* try sending the response if the response buffer is full aaaa idk */ 
+    int used = http_response_raw(&response, con->response + con->response_len, 
+                                HTTP_RESPONSE_SIZE - con->response_len); 
+    if (used == -1)
+        return; /* dont send the error */  
+
+    con->response_len += used; 
+    HTTP_SET_WRITING(con->flags); 
 }
 
 static void socket_drain(Http_connection_t* con)
@@ -131,7 +159,7 @@ static int buffer_process(Http_connection_t* con)
                 {
                     if (con->buff_len >= HTTP_REQUEST_SIZE)
                     {
-                        HTTP_SET_CLOSING(con->flags); 
+                        write_error_response(con, HTTP_PAYLOAD_TOO_LARGE); 
                     }
                     return -1; 
                 }
@@ -140,7 +168,7 @@ static int buffer_process(Http_connection_t* con)
                 con->header_len = end - con->buff + HTTP_HEADER_DELIMITER_LEN;  
                 if (http_request_parse(&con->request, con->buff, con->header_len) == -1)
                 {
-                    HTTP_SET_CLOSING(con->flags); 
+                    write_error_response(con, HTTP_BAD_REQUEST); 
                     return -1; 
                 }
                 
@@ -150,7 +178,7 @@ static int buffer_process(Http_connection_t* con)
                 {
                     if (con->request.body_len >= HTTP_REQUEST_SIZE - con->header_len)
                     {
-                        HTTP_SET_CLOSING(con->flags); 
+                        write_error_response(con, HTTP_PAYLOAD_TOO_LARGE); 
                         return -1; 
                     }
                     con->request.body = &con->buff[con->header_len]; 
@@ -173,14 +201,14 @@ static int buffer_process(Http_connection_t* con)
                 memset(&response, 0, sizeof response); 
                 if (con->handler(&con->request, &response) == HTTP_HANDLER_ERR)
                 {
-                    HTTP_SET_CLOSING(con->flags); 
+                    write_error_response(con, HTTP_INTERNAL_SERVER_ERROR); 
                     return -1; 
                 }
                 int used = http_response_raw(&response, con->response + con->response_len, HTTP_RESPONSE_SIZE - con->response_len); 
                 http_response_free(&response); 
                 if (used == -1)
                 {
-                    HTTP_SET_CLOSING(con->flags); 
+                    write_error_response(con, HTTP_PAYLOAD_TOO_LARGE); 
                     return -1; 
                 }
                 con->response_len += used; 
@@ -261,8 +289,8 @@ void http_connection_update_events(int epoll_fd, Http_epoll_item_t* con_item)
         HTTP_SET_CLOSING(con->flags); 
     }
 
-    if (HTTP_IS_CLOSING(con->flags)) /* there is nothing to do */ 
-        return; 
+    if (HTTP_IS_CLOSING(con->flags)) 
+        return; /* there is nothing to do */ 
 
     uint32_t events = EPOLLET | EPOLLRDHUP | EPOLLHUP;  
 

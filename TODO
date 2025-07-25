@@ -1,4 +1,3 @@
 - potentiel use after free if both timeout and user handle happened at the same time
-- make it send error response when an error occurs
-- clean up code
+- clean up code ? 
 - maybe do some optimization for the heap allocation 

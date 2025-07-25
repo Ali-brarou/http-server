@@ -14,15 +14,30 @@ void parse_arguments(int argc, char* argv[], Http_config_t* config);
 void sigint_handler(int sig); 
 Http_handler_result_t handler(Http_request_t* req, Http_response_t* resp); 
 
+/* this will allow me to use the server context in the sigint handler */ 
+Http_server_context_t* server_context_ptr = NULL; 
+
 int main(int argc, char* argv[])
 {
     signal(SIGINT, sigint_handler); /* will call http_trigger_shutdown() */ 
 
+    /* preparing the config */ 
     Http_config_t config = HTTP_DEFAULT_CONFIG; 
     config.handler = &handler; 
     parse_arguments(argc, argv, &config); 
+    /* server context */ 
+    Http_server_context_t server_context; 
+    server_context_ptr = &server_context; 
+    if (http_server_start(&server_context, &config) == -1)
+    {
+        fprintf(stderr, "Error : can't start ther server\n"); 
+        return EXIT_FAILURE; 
+    }
 
-    return http_server_run(&config); 
+    http_server_run(&server_context); 
+    http_server_clean(&server_context); 
+
+    return EXIT_SUCCESS; 
 }
 
 void print_help(char* program_name)
@@ -121,5 +136,6 @@ void parse_arguments(int argc, char* argv[], Http_config_t* config)
 void sigint_handler(int sig)
 {
     (void)sig; 
-    http_trigger_shutdown(); 
+    if (server_context_ptr != NULL)
+        http_trigger_shutdown(server_context_ptr); 
 }

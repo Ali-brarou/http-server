@@ -1,3 +1,4 @@
+#include <assert.h> 
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h> 
@@ -9,82 +10,73 @@
 
 #include "server.h"
 
+static int http_server_setup(Http_config_t* cfg); 
+static void http_server_close(int server_fd); 
 
-void http_server_init(void)
-{
-    /* nothing */ 
-}
-
-int http_server_run(Http_config_t* config)
+int http_server_start(Http_server_context_t* ctx, Http_config_t* config)
 {
     if (!config)
     {
         fprintf(stderr, "Error: no config was provided\n") ;
-        return EXIT_FAILURE; 
+        return -1; 
     }
     if (!config->handler)
     {
         fprintf(stderr, "Error: No HTTP handler set in config\n"); 
-        return EXIT_FAILURE; 
+        return -1; 
     }
 
-    Http_server_context_t ctx; 
+    ctx->cfg = config; 
+    ctx->active_clients = 0; 
 
-    http_server_init();
-    ctx.cfg = config; 
-
-    ctx.listen_fd = http_server_setup(config);
-    if (ctx.listen_fd == -1)
+    ctx->listen_fd = http_server_setup(config);
+    if (ctx->listen_fd == -1)
     {
         fprintf(stderr, "Error: failed getting listening socket\n");
-        return EXIT_FAILURE;
+        return -1;
     }
 
 
-    ctx.epoll_fd = http_epoll_create_instance();
-    if (ctx.epoll_fd == -1)
+    ctx->epoll_fd = http_epoll_create_instance();
+    if (ctx->epoll_fd == -1)
     {
         fprintf(stderr, "Error: failed creating epoll instance\n");
-        return EXIT_FAILURE;
+        return -1;
     }
 
-    if (http_shutdown_setup(ctx.epoll_fd) == -1)
+    ctx->shutdown_fd = http_shutdown_setup(ctx->epoll_fd); 
+    if (ctx->shutdown_fd == -1)
     {
         fprintf(stderr, "Error: failed setting up shutdown event\n");
-        return EXIT_FAILURE;
+        return -1;
     }
     
-    ctx.timer = http_timer_create(); 
-    if (!ctx.timer)
+    ctx->timer = http_timer_create(); 
+    if (!ctx->timer)
     {
         fprintf(stderr, "error :failed creating timer\n"); 
-        return EXIT_FAILURE; 
+        return -1; 
     }
 
-    if (http_epoll_add_timer(ctx.epoll_fd, ctx.timer, EPOLLET | EPOLLIN) == -1)
+    if (http_epoll_add_timer(ctx->epoll_fd, ctx->timer, EPOLLET | EPOLLIN) == -1)
     {
         fprintf(stderr, "error :failed adding timer to epoll\n"); 
-        return EXIT_FAILURE; 
+        return -1; 
     }
 
     printf("server listening on %s:%d\n", config->host, config->port);
 
-    if (http_epoll_add_fd(ctx.epoll_fd, HTTP_ITEM_LISTENER, ctx.listen_fd, EPOLLIN) == -1)
+    if (http_epoll_add_fd(ctx->epoll_fd, HTTP_ITEM_LISTENER, ctx->listen_fd, EPOLLIN) == -1)
     {
-        return EXIT_FAILURE;
+        return -1;
     }
+    return 0; 
+}
 
+void http_server_run(Http_server_context_t* ctx)
+{
     /* main loop */
-    http_epoll_run_loop(&ctx); 
-
-    /* clean up */
-    http_epoll_close(ctx.epoll_fd);
-    http_timer_clean(ctx.timer); 
-    http_server_close(ctx.listen_fd);
-    http_shutdown_close();
-    http_server_clean();
-
-    return EXIT_SUCCESS;
+    http_epoll_run_loop(ctx); 
 }
 
 int http_server_setup(Http_config_t* cfg)
@@ -157,15 +149,18 @@ fail:
     return listen_fd;
 }
 
-void http_server_close(int server_fd)
+static void http_server_close(int server_fd)
 {
-    if (server_fd == -1)
-        return ; 
+    assert(server_fd != -1); 
 
     close(server_fd); 
 }
 
-void http_server_clean(void)
+void http_server_clean(Http_server_context_t* ctx)
 {
-    /* nothing */ 
+    /* clean up */
+    http_epoll_close(ctx->epoll_fd);
+    http_timer_clean(ctx->timer); 
+    http_server_close(ctx->listen_fd);
+    http_shutdown_close(ctx->shutdown_fd);
 }

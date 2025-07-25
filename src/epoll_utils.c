@@ -8,8 +8,6 @@
 
 #include "epoll_utils.h"
 
-static int shutdown_fd = -1; 
-
 int http_epoll_create_instance(void)
 {
     int epoll_fd = epoll_create(1); 
@@ -23,8 +21,7 @@ int http_epoll_create_instance(void)
 
 void http_epoll_close(int epoll_fd)
 {
-    if (epoll_fd == -1)
-        return; 
+    assert(epoll_fd != -1); 
     close(epoll_fd); 
 }
 
@@ -111,6 +108,8 @@ int http_epoll_add_con(int epoll_fd, Http_connection_t* con, uint32_t events)
 
 int http_epoll_mod_con(int epoll_fd, Http_epoll_item_t* con_item, uint32_t events)
 {
+    assert(epoll_fd != -1); 
+    assert(con_item != NULL); 
     int fd = con_item->con->client_fd; 
     struct epoll_event ev; 
     ev.events = events; 
@@ -126,6 +125,8 @@ int http_epoll_mod_con(int epoll_fd, Http_epoll_item_t* con_item, uint32_t event
 
 void http_epoll_del_con(int epoll_fd, Http_connection_t* con)
 {
+    assert(epoll_fd != -1); 
+    assert(con != NULL); 
     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, con->client_fd, NULL); 
 }
 
@@ -137,10 +138,12 @@ typedef enum {
 
 static Handle_result handle_item_event(Http_server_context_t* ctx, Http_epoll_item_t* item, uint32_t events); 
 static void handle_client(Http_server_context_t* ctx, Http_epoll_item_t* con_item, uint32_t events); 
-static void close_client(int epoll_fd, Http_epoll_item_t* con_item, Http_timer_t* timer); 
+static void close_client(Http_server_context_t* ctx, Http_epoll_item_t* con_item); 
 
 static Handle_result handle_item_event(Http_server_context_t* ctx, Http_epoll_item_t* item, uint32_t events)
 {
+    assert(ctx != NULL); 
+    assert(item != NULL); 
     switch (item->type)
     {
         case HTTP_ITEM_SHUTDOWN: /* shutdown is triggered */ 
@@ -174,7 +177,7 @@ static Handle_result handle_item_event(Http_server_context_t* ctx, Http_epoll_it
             if (event.flag == HTTP_TIMER_EVENT_VALID)
             {
                 event.con->timeout_index = -1; 
-                http_connection_clean(event.con, ctx->epoll_fd, ctx->timer); 
+                http_connection_clean(ctx, event.con); 
             }
 
             return HANDLE_CONTINUE; 
@@ -195,7 +198,7 @@ static void handle_client(Http_server_context_t* ctx, Http_epoll_item_t* con_ite
         http_connection_update_events(ctx->epoll_fd, con_item); 
         if (HTTP_IS_CLOSING(con->flags))
         {
-            close_client(ctx->epoll_fd, con_item, ctx->timer); 
+            close_client(ctx, con_item); 
             return; /* no need to check if client has closed connection */ 
         }
     }
@@ -206,22 +209,22 @@ static void handle_client(Http_server_context_t* ctx, Http_epoll_item_t* con_ite
         http_connection_update_events(ctx->epoll_fd, con_item); 
         if (HTTP_IS_CLOSING(con->flags))
         {
-            close_client(ctx->epoll_fd, con_item, ctx->timer); 
+            close_client(ctx, con_item); 
             return; /* no need to check if client has closed connection */ 
         }
     }
     /* client has closed connection or connection is dead */ 
     if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) 
     {
-        close_client(ctx->epoll_fd, con_item, ctx->timer); 
+        close_client(ctx, con_item); 
     }
 }
 
-static void close_client(int epoll_fd, Http_epoll_item_t* con_item, Http_timer_t* timer)
+static void close_client(Http_server_context_t* ctx, Http_epoll_item_t* con_item)
 {
     assert(con_item->type == HTTP_ITEM_CLIENT); 
 
-    http_connection_clean(con_item->con, epoll_fd, timer); 
+    http_connection_clean(ctx, con_item->con); 
     free(con_item); 
 }
 
@@ -268,32 +271,4 @@ int http_epoll_run_loop(Http_server_context_t* ctx)
 shutdown: 
     free(events); 
     return 0;
-}
-
-
-int http_shutdown_setup(int epoll_fd)
-{
-    shutdown_fd = eventfd(0, EFD_NONBLOCK); 
-    if (shutdown_fd == -1)
-    {
-        perror("eventfd"); 
-        return -1; 
-    }
-    return http_epoll_add_fd(epoll_fd, HTTP_ITEM_SHUTDOWN,shutdown_fd, EPOLLIN); 
-}
-
-void http_trigger_shutdown(void)
-{
-    if (shutdown_fd == -1)
-        return; 
-    uint64_t u = 1; 
-    write(shutdown_fd, &u, sizeof u); 
-}
-
-void http_shutdown_close(void)
-{
-    if (shutdown_fd == -1)
-        return; 
-    close(shutdown_fd); 
-    shutdown_fd = -1; 
 }

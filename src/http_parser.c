@@ -65,15 +65,16 @@ static const char fchar_table[256] = {
     [0x80 ... 0xFF] = 1, 
 }; 
 
-static int istchar(char c); 
-static int ispchar(char c); 
-static int isfchar(char c); 
+static inline int istchar(char c); 
+static inline int ispchar(char c); 
+static inline int isfchar(char c); 
 /* returns offset if parsed correctly or -1 if malforemed */ 
 static int parse_request_line(Http_request_t* request, char* raw, size_t raw_len);  
 static int parse_request_headers(Http_request_t* request, char* raw, size_t raw_len, size_t offset); 
 
 #define MIN_RAW_REQUEST_SIZE 14 /* sus if under 14 bytes */ 
 #define HTTP_VERSION_PREFIX "HTTP/"
+#define HTTP_VERSION_PREFIX_LEN 5 
 
 /* strict parser (•`╭╮´•) */  
 int http_request_parse(Http_request_t* request, char* request_raw, size_t request_raw_len)
@@ -105,15 +106,15 @@ int http_request_parse(Http_request_t* request, char* request_raw, size_t reques
     return offset; 
 }
 
-static int istchar(char c)
+static inline int istchar(char c)
 {
     return isalnum((int)c) || tchar_table[(unsigned char)c]; 
 }
-static int ispchar(char c)
+static inline int ispchar(char c)
 {
     return isalnum((int)c) || pchar_table[(unsigned char)c]; 
 }
-static int isfchar(char c)
+static inline int isfchar(char c)
 {
     return fchar_table[(unsigned char)c]; 
 }
@@ -153,12 +154,12 @@ static int parse_request_line(Http_request_t* req, char* raw, size_t raw_len)
 
     /* parse vesrion */ 
     /* this parser will support only version 1.0 and 1.1 so it must check minor version */ 
-    if (offset + strlen(HTTP_VERSION_PREFIX) + 3 > raw_len) 
+    if (offset + HTTP_VERSION_PREFIX_LEN + 3 > raw_len) 
         return -1; 
-    if (strncmp(&raw[offset], HTTP_VERSION_PREFIX, strlen(HTTP_VERSION_PREFIX)))
+    if (strncmp(&raw[offset], HTTP_VERSION_PREFIX, HTTP_VERSION_PREFIX_LEN))
         return -1; 
 
-    offset += strlen(HTTP_VERSION_PREFIX); 
+    offset += HTTP_VERSION_PREFIX_LEN; 
     if (!isdigit((int)raw[offset]))
         return -1; 
     req->version[0] = raw[offset]; 

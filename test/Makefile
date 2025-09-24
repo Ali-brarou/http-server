@@ -1,11 +1,12 @@
-LIB_DIR := ../lib
+SERVER_DIR  := ../server
+INCLUDE_DIR := ../include 
 CC := gcc
-CFLAGS_DEBUG = -g -O0 -Wall -Wextra -DDEBUG -DHTTP_USE_MEMMEM -I$(LIB_DIR)
-CFLAGS_RELEASE = -O2 -Wall -Wextra -Werror -DNDEBUG -DHTTP_USE_MEMMEM -I$(LIB_DIR)
+CFLAGS_DEBUG = -g -O0 -Wall -Wextra -DDEBUG -DHTTP_USE_MEMMEM -I$(INCLUDE_DIR)
+CFLAGS_RELEASE = -O2 -Wall -Wextra -Werror -DNDEBUG -DHTTP_USE_MEMMEM -I$(INCLUDE_DIR)
 
 TARGET := server
 
-SRC := test.c $(wildcard $(LIB_DIR)/*.c)
+SRC := test.c $(wildcard $(SERVER_DIR)/*.c)
 
 BUILD ?= release
 

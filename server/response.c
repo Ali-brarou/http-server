@@ -2,7 +2,7 @@
 #include <stdio.h> 
 #include <stdlib.h> 
 
-#include "http_response.h"
+#include <http_response.h> 
 
 static const char *http_status_reasons_table[HTTP_MAX_STATUS_CODE + 1] = {
     [100] = "Continue",
@@ -33,9 +33,8 @@ static const char *http_status_reasons_table[HTTP_MAX_STATUS_CODE + 1] = {
 const char *http_status_reason_phrase(int code) 
 {
     if (code < 100 || code > HTTP_MAX_STATUS_CODE || http_status_reasons_table[code] == NULL) 
-    {
         return "Unknown Status";
-    }
+
     return http_status_reasons_table[code];
 }
 
@@ -69,62 +68,119 @@ void http_response_make_error(Http_response_t* resp, int status_code)
     resp->connection_close = 1; 
 }
 
+#define RAW_WRITE(fmt, ...) \
+    do { \
+        n = snprintf(buffer + written, buffer_len - written, fmt, __VA_ARGS__); \
+        if (n < 0 || (size_t)n >= buffer_len) \
+            return -1; \
+        written += n; \
+    } while(0)
+
 int http_response_raw(const Http_response_t* resp, char* buffer, size_t buffer_len)
 {
     assert(resp != NULL); 
     assert(buffer != NULL); 
-    size_t used = 0; 
-    int written; 
+    int written = 0; 
+    int n; 
     /* first line */ 
-    written = snprintf(buffer, buffer_len, "HTTP/1.1 %d %s\r\n", 
-            resp->status_code, http_status_reason_phrase(resp->status_code)); 
-    if (written < 0 || (size_t)written >= buffer_len) 
-        return -1; 
-    used += (size_t )written; 
+    RAW_WRITE("HTTP/1.1 %d %s\r\n", 
+            resp->status_code, 
+            http_status_reason_phrase(resp->status_code)); 
 
     /* headers */  
-
-    const char* connection_value = resp->connection_close ? "close" : "keep-alive";
-    written = snprintf(buffer + used, buffer_len - used, "Connection: %s\r\n", connection_value);
-    if (written < 0 || (size_t)written >= buffer_len - used) return -1;
-    used += (size_t)written;
+    const char* conn_val = resp->connection_close ? "close" : "keep-alive";
+    RAW_WRITE("Connection: %s\r\n", conn_val); 
 
     for (size_t i = 0; i < resp->headers_count; i++)
     {
-        written = snprintf(buffer + used, buffer_len - used, "%s: %s\r\n",
-                resp->headers[i].key, resp->headers[i].value); 
-        if (written < 0 || (size_t)written >= buffer_len - used) return -1;
-        used += (size_t)written;
+        RAW_WRITE("%s: %s\r\n", 
+            resp->headers[i].key, 
+            resp->headers[i].value); 
     }
 
     const char* content_type_value = http_content_type_value(resp->content_type); 
     if (content_type_value)
     {
-        written = snprintf(buffer + used, buffer_len - used, "Content-Type: %s\r\n", content_type_value);
-        if (written < 0 || (size_t)written >= buffer_len - used) return -1;
-        used += (size_t)written;
+        RAW_WRITE("Content-Type: %s\r\n", content_type_value); 
     }
 
-    written = snprintf(buffer + used, buffer_len - used, "Content-Length: %ld\r\n", resp->body_len);
-    if (written < 0 || (size_t)written >= buffer_len - used) return -1;
-    used += (size_t)written;
+    RAW_WRITE("Content-Length: %zu\r\n", resp->body_len); 
 
     /* delimitier */ 
-    if (buffer_len - used < 2) return -1;
-    memcpy(buffer + used, "\r\n", 2);
-    used += 2;
+    if (buffer_len - written < 2) return -1;
+    memcpy(buffer + written , "\r\n", 2);
+    written += 2;
 
     /* body :3 */ 
-    if (buffer_len - used < resp->body_len)
+    if (buffer_len - written < resp->body_len)
         return -1; 
-    if (resp->body_len != 0)
+    
+    memcpy(buffer + written , resp->body, resp->body_len); 
+    written += resp->body_len; 
+
+    return written; 
+}
+
+#undef RAW_WRITE
+
+/* helper function */ 
+#define CIRC_WRITE(fmt, ...)\
+    do { \
+    n = snprintf(tmp, sizeof(tmp), fmt, __VA_ARGS__); \
+    if (n < 0 || n >= (int)sizeof(tmp)) \
+        return -1; \
+    if (http_circ_write(resp_buff, tmp, n) == -1) \
+        return -1; \
+    written += n; \
+    } while(0)
+
+int http_response_raw_circ(const Http_response_t* resp, Http_circ_buff_t* resp_buff)
+{
+    assert(resp); 
+    assert(resp_buff); 
+
+    char tmp[HTTP_MAX_HEADER_LINE]; 
+    int written = 0; 
+    int n; 
+
+    /* first line */ 
+    CIRC_WRITE("HTTP/1.1 %d %s\r\n", 
+            resp->status_code, 
+            http_status_reason_phrase(resp->status_code)); 
+
+    /* headers */  
+    const char* conn_val = resp->connection_close ? "close" : "keep-alive";
+    CIRC_WRITE("Connection: %s\r\n", conn_val); 
+
+    for (size_t i = 0; i < resp->headers_count; i++)
     {
-        memcpy(buffer + used, resp->body, resp->body_len); 
-        used += resp->body_len; 
+        CIRC_WRITE("%s: %s\r\n", 
+            resp->headers[i].key, 
+            resp->headers[i].value); 
     }
 
-    return used; 
+    const char* content_type_value = http_content_type_value(resp->content_type); 
+    if (content_type_value)
+    {
+        CIRC_WRITE("Content-Type: %s\r\n", content_type_value); 
+    }
+
+    CIRC_WRITE("Content-Length: %zu\r\n", resp->body_len); 
+
+    /* delimitier */ 
+    if (http_circ_write(resp_buff, "\r\n", 2) == -1) 
+        return -1; 
+    written += 2;
+
+    /* body :3 */ 
+    if (http_circ_write(resp_buff, resp->body, resp->body_len) == -1) 
+        return -1; 
+    written += resp->body_len; 
+
+    return written; 
 }
+
+#undef CIRC_WRITE
 
 void http_response_free(Http_response_t* resp)
 {

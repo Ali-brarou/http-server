@@ -4,7 +4,7 @@
 #include <strings.h> 
 #include <stdio.h> /* debug */ 
 
-#include "http_parser.h"
+#include <http_parser.h>
 
 static const Http_method_mapping_t http_methods_table[] = {
     { HTTP_METHOD_GET,     "GET"     },
@@ -257,9 +257,7 @@ static int parse_request_headers(Http_request_t* req, char* raw, size_t raw_len,
     return -1; 
 }
 
-
 /* debug */ 
-
 void http_request_print(Http_request_t* request)
 {
     if (!request)

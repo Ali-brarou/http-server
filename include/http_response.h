@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "connection.h"
+#include "circ_buff.h"
 
 #define HTTP_MAX_STATUS_CODE 599
 typedef enum Http_status_code_e {
@@ -72,6 +73,7 @@ typedef struct Http_response_s {
 void http_response_make_error(Http_response_t* resp, int status_code); 
 /* returns -1 if an error or the used size if everything is ok */ 
 int  http_response_raw(const Http_response_t* resp, char* buffer, size_t buffer_len); 
+int  http_response_raw_circ(const Http_response_t* resp, Http_circ_buff_t* resp_buff); 
 /* response won't be free if the handler returned error */ 
 void http_response_free(Http_response_t* resp); 
 

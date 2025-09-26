@@ -1,13 +1,10 @@
 #include <stdio.h> 
-#include <unistd.h> 
 #include <getopt.h> 
-#include <string.h> 
 #include <strings.h> 
 #include <stdlib.h> 
 #include <signal.h> 
-#include <sys/epoll.h> 
 
-#include "server.h"
+#include <server.h>
 
 void print_help(char* program_name); 
 void parse_arguments(int argc, char* argv[], Http_config_t* config); 

@@ -20,7 +20,8 @@ typedef struct Http_config_s {
 /* not configurable (for now) */ 
 
 #define HTTP_REQUEST_SIZE                   8192
-#define HTTP_RESPONSE_SIZE                  8192
+#define HTTP_RESPONSE_SIZE                  8192 /* must be a power of 2 */ 
+#define HTTP_MAX_HEADER_LINE                1024
 #define HTTP_MAX_HEADERS                    128 
 #define HTTP_CLIENT_TIMEOUT                 30
 #define HTTP_TIMER_MAX_EVENTS               819200 

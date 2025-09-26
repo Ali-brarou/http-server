@@ -4,7 +4,7 @@
 #include <sys/eventfd.h> 
 #include <unistd.h> 
 
-#include "shutdown.h"
+#include <shutdown.h>
 
 int http_shutdown_setup(int epoll_fd)
 {
@@ -26,8 +26,7 @@ int http_shutdown_setup(int epoll_fd)
 
 void http_trigger_shutdown(Http_server_context_t* ctx)
 {
-    assert(ctx != NULL); 
-    assert(ctx->shutdown_fd != -1); 
+    assert(ctx != NULL && ctx->shutdown_fd != -1); 
     uint64_t u = 1;
     write(ctx->shutdown_fd, &u, sizeof u);
 }

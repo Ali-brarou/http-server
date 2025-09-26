@@ -1,7 +1,7 @@
-- use a circular buffer to avoid copying
+- add routing
 - improve error responses
-- handle sigpipe
 - potentiel use after free if both timeout and user handle happened at the same time
+- handle https (openssl)
 - better testing
 - clean up code ? 
 - maybe do some optimization for the heap allocation 

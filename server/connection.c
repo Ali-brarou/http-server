@@ -11,14 +11,12 @@
 #include <netinet/in.h>
 #include <unistd.h> 
 
-#include "connection.h"
+#include <connection.h>
 
 static Http_connection_t* http_connection_create(int client_fd, Http_timer_t* timer, Http_config_t* cfg); 
 static int buffer_process(Http_connection_t* con); 
 static void socket_drain(Http_connection_t* con); 
 static void write_error_response(Http_connection_t* con, int status_code); 
-
-
 
 /* null if can't allocate memory */ 
 static Http_connection_t* http_connection_create(int client_fd, Http_timer_t* timer, Http_config_t* cfg)
@@ -39,6 +37,8 @@ static Http_connection_t* http_connection_create(int client_fd, Http_timer_t* ti
         return NULL; 
     }
 
+    /* http_circ_init(&con->response_buff, con->response_mem, sizeof(con->response_mem)); */
+
     return con; 
 }
 
@@ -52,7 +52,6 @@ void http_connection_clean(Http_server_context_t* ctx, Http_connection_t* con)
 
     ctx->active_clients--; 
 }
-
 
 void http_connection_accept(Http_server_context_t* ctx)
 {
@@ -125,7 +124,6 @@ static void socket_drain(Http_connection_t* con)
         con->buff_len += n; 
     }
 }
-
 
 #define HTTP_HEADER_DELIMITER       "\r\n\r\n"
 #define HTTP_HEADER_DELIMITER_LEN   4
@@ -252,9 +250,11 @@ void http_connection_write(Http_connection_t* con)
 {
     while (con->response_sent < con->response_len)   
     {
-        ssize_t n = write(con->client_fd, 
+        /* MSG_NOSIGNAL to prevent SIGPIPE */
+        ssize_t n = send(con->client_fd, 
                 con->response + con->response_sent, 
-                con->response_len - con->response_sent); 
+                con->response_len - con->response_sent,
+                MSG_NOSIGNAL); 
         if (n == -1) 
         {
             if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -285,12 +285,11 @@ void http_connection_update_events(int epoll_fd, Http_epoll_item_t* con_item)
     Http_connection_t* con = con_item->con; 
     /* if it's not writing and should close flags is set close the connection */ 
     if (!HTTP_IS_WRITING(con->flags) && HTTP_SHOULD_CLOSE(con->flags))
-    {
         HTTP_SET_CLOSING(con->flags); 
-    }
 
+    /* there is nothing to do */ 
     if (HTTP_IS_CLOSING(con->flags)) 
-        return; /* there is nothing to do */ 
+        return; 
 
     uint32_t events = EPOLLET | EPOLLRDHUP | EPOLLHUP;  
 

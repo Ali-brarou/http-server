@@ -29,7 +29,6 @@ int main(int argc, char* argv[])
     {
         fprintf(stderr, "Error : failed to register a route\n"); 
         return EXIT_FAILURE; 
-
     }
 
     /* preparing the config */ 
@@ -66,17 +65,6 @@ void print_help(char* program_name)
 #define BODY "<html><head><title>this shit works</title></head><body>Hello, browser!</body></html>"
 Http_handler_result_t handler(Http_request_t* req, Http_response_t* resp)
 {
-    if (strcmp(req->path, "/"))
-    {
-        http_response_make_error(resp, HTTP_NOT_FOUND); 
-        return HTTP_HANDLER_OK; 
-    }
-    if (req->method != HTTP_METHOD_GET)
-    {
-        http_response_make_error(resp, HTTP_METHOD_NOT_ALLOWED); 
-        return HTTP_HANDLER_OK; 
-    }
-
     resp->status_code = HTTP_OK; 
 
     resp->content_type = HTTP_CONTENT_TEXT_HTML; 

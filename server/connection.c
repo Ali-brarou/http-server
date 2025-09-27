@@ -198,7 +198,7 @@ static int buffer_process(Http_connection_t* con)
                 Http_response_t response; 
                 memset(&response, 0, sizeof response); 
 
-                Http_handler handler = http_router_find(con->router, 
+                Http_handler_t handler = http_router_find(con->router, 
                                                         con->request.method,
                                                         con->request.path); 
 
@@ -206,6 +206,7 @@ static int buffer_process(Http_connection_t* con)
                 if (!handler)
                 {
                     write_error_response(con, HTTP_NOT_FOUND); 
+                    return -1; 
                 }
 
                 if (handler(&con->request, &response) == HTTP_HANDLER_ERR)

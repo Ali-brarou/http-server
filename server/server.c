@@ -36,7 +36,6 @@ int http_server_start(Http_server_context_t* ctx, Http_config_t* config)
         return -1;
     }
 
-
     ctx->epoll_fd = http_epoll_create_instance();
     if (ctx->epoll_fd == -1)
     {
@@ -163,4 +162,70 @@ void http_server_clean(Http_server_context_t* ctx)
     http_timer_clean(ctx->timer); 
     http_server_close(ctx->listen_fd);
     http_shutdown_close(ctx->shutdown_fd);
+}
+
+
+Http_handler_result_t http_handler_static_file(Http_request_t* req,
+                                               Http_response_t* resp,
+                                               const char* file_path,
+                                               Http_content_type_t content_type)
+{
+    (void) req; 
+
+    FILE* file = fopen(file_path, "rb"); 
+    if (!file)
+    {
+        http_response_make_error(resp, HTTP_NOT_FOUND); 
+        return HTTP_HANDLER_OK; 
+    }
+
+    if (fseek(file, 0, SEEK_END) != 0)
+    {
+        fclose(file); 
+        http_response_make_error(resp, HTTP_INTERNAL_SERVER_ERROR); 
+        return HTTP_HANDLER_OK; 
+    }
+
+    long file_size = ftell(file); 
+    if (file_size < 0)
+    {
+        fclose(file); 
+        http_response_make_error(resp, HTTP_NOT_FOUND); 
+        return HTTP_HANDLER_OK; 
+    }
+
+    if (file_size == 0)
+    {
+        fclose(file); 
+        http_response_make_error(resp, HTTP_NOT_FOUND); 
+        return HTTP_HANDLER_OK; 
+    }
+
+    rewind(file); 
+
+    char* buffer = malloc(file_size); 
+    if (!buffer)
+    {   
+        fclose(file); 
+        http_response_make_error(resp, HTTP_INTERNAL_SERVER_ERROR); 
+        return HTTP_HANDLER_OK; 
+    }
+
+    size_t read_bytes = fread(buffer, 1, (size_t)file_size, file); 
+    fclose(file); 
+    if (read_bytes != (size_t)file_size)
+    {
+        free(buffer); 
+        http_response_make_error(resp, HTTP_INTERNAL_SERVER_ERROR); 
+        return HTTP_HANDLER_OK; 
+    }
+
+    resp->status_code = HTTP_OK; 
+    resp->content_type = content_type; 
+    resp->body = buffer; 
+    resp->body_len = (size_t)file_size; 
+    resp->body_mem = HTTP_MEM_OWNED; /* free memory */ 
+    resp->connection_close = 0; 
+
+    return HTTP_HANDLER_OK; 
 }

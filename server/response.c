@@ -39,9 +39,15 @@ const char *http_status_reason_phrase(int code)
 }
 
 static const char* content_type_table[HTTP_CONTENT_TYPE_LAST + 1] = {
-    [HTTP_CONTENT_NONE]         = NULL, 
-    [HTTP_CONTENT_TEXT_PLAIN]   = "text/plain", 
-    [HTTP_CONTENT_TEXT_HTML]    = "text/html", 
+    [HTTP_CONTENT_NONE]             = NULL, 
+    [HTTP_CONTENT_TEXT_PLAIN]       = "text/plain", 
+    [HTTP_CONTENT_TEXT_HTML]        = "text/html", 
+    [HTTP_CONTENT_TEXT_CSS]         = "text/css",
+    [HTTP_CONTENT_APPLICATION_JS]   = "application/javascript",
+    [HTTP_CONTENT_IMAGE_PNG]        = "image/png",
+    [HTTP_CONTENT_IMAGE_JPEG]       = "image/jpeg",
+    [HTTP_CONTENT_IMAGE_GIF]        = "image/gif",
+    [HTTP_CONTENT_IMAGE_SVG]        = "image/svg+xml",
 };
 
 const char* http_content_type_value(Http_content_type_t content_type)

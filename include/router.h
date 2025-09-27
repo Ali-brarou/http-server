@@ -8,7 +8,7 @@
 typedef struct Http_route_s {
     Http_method_t method; 
     char* path; 
-    Http_handler handler;
+    Http_handler_t handler;
     void* data; /* user data */  
     struct Http_route_s* next; 
 } Http_route_t; 
@@ -21,9 +21,9 @@ typedef struct Http_router_s {
 int http_route_register(Http_router_t* router, 
                         Http_method_t method, 
                         const char* path, 
-                        Http_handler handler); 
+                        Http_handler_t handler); 
 /* returns NULL if no routing exists */
-Http_handler http_router_find(Http_router_t* router, Http_method_t method, const char* path);
+Http_handler_t http_router_find(Http_router_t* router, Http_method_t method, const char* path);
 int http_router_init(Http_router_t* router); 
 void http_router_clean(Http_router_t* router); 
 

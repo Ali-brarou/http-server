@@ -9,7 +9,7 @@ static void route_add(Http_router_t* router, Http_route_t* route);
 int http_route_register(Http_router_t* router,
                         Http_method_t method,
                         const char* path,
-                        Http_handler handler)
+                        Http_handler_t handler)
 {
     if (!router || !path)
         return -1; 
@@ -33,7 +33,7 @@ int http_route_register(Http_router_t* router,
     return 0; 
 }
 
-Http_handler http_router_find(Http_router_t* router, Http_method_t method, const char* path)
+Http_handler_t http_router_find(Http_router_t* router, Http_method_t method, const char* path)
 {
     for (Http_route_t* route = router->routes; route != NULL; route = route->next)
     {

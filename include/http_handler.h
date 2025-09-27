@@ -11,6 +11,6 @@ typedef enum Http_hander_result_e {
 } Http_handler_result_t; 
 
 /* if this returns error, server will cut connection immediately */ 
-typedef Http_handler_result_t (*Http_handler)(Http_request_t* req, Http_response_t* resp); 
+typedef Http_handler_result_t (*Http_handler_t)(Http_request_t* req, Http_response_t* resp); 
 
 #endif

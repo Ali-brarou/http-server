@@ -38,11 +38,17 @@ typedef enum Http_status_code_e {
 
 const char* http_reason_from_status(int status_code); 
 
-#define HTTP_CONTENT_TYPE_LAST HTTP_CONTENT_TEXT_HTML 
+#define HTTP_CONTENT_TYPE_LAST HTTP_CONTENT_IMAGE_SVG
 typedef enum Http_content_type_e {
     HTTP_CONTENT_NONE = 0, 
     HTTP_CONTENT_TEXT_PLAIN, 
     HTTP_CONTENT_TEXT_HTML, 
+    HTTP_CONTENT_TEXT_CSS,
+    HTTP_CONTENT_APPLICATION_JS,
+    HTTP_CONTENT_IMAGE_PNG,
+    HTTP_CONTENT_IMAGE_JPEG,
+    HTTP_CONTENT_IMAGE_GIF,
+    HTTP_CONTENT_IMAGE_SVG,
 } Http_content_type_t;  
 
 const char* http_content_type_value(Http_content_type_t content_type); 

@@ -17,4 +17,16 @@ void http_server_run(Http_server_context_t* ctx);
 /* clean context */ 
 void http_server_clean(Http_server_context_t* ctx); 
 
+/* generic static file handler */
+Http_handler_result_t http_handler_static_file(Http_request_t* req,
+                                               Http_response_t* resp,
+                                               const char* file_path,
+                                               Http_content_type_t content_type);
+
+#define DEFINE_STATIC_HANDLER(name, path, content_type_enum)                \
+Http_handler_result_t name(Http_request_t* req, Http_response_t* resp)      \
+{                                                                           \
+    return http_handler_static_file(req, resp, path, content_type_enum);    \
+}
+
 #endif

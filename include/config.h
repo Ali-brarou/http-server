@@ -6,6 +6,9 @@
 
 #include "http_handler.h"
 
+/* forward declaration */ 
+typedef struct Http_router_s Http_router_t; 
+
 #define HTTP_MAX_HOST_LEN 64
 
 typedef struct Http_config_s {
@@ -13,14 +16,13 @@ typedef struct Http_config_s {
     char host[HTTP_MAX_HOST_LEN];
     int backlog; 
     int max_events; 
-    Http_handler handler; 
+    Http_router_t* router; /* must be not null */ 
 } Http_config_t;
 
 
 /* not configurable (for now) */ 
-
 #define HTTP_REQUEST_SIZE                   8192
-#define HTTP_RESPONSE_SIZE                  8192 /* must be a power of 2 */ 
+#define HTTP_RESPONSE_SIZE                  8192
 #define HTTP_MAX_HEADER_LINE                1024
 #define HTTP_MAX_HEADERS                    128 
 #define HTTP_CLIENT_TIMEOUT                 30

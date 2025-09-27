@@ -20,9 +20,9 @@ int http_server_start(Http_server_context_t* ctx, Http_config_t* config)
         fprintf(stderr, "Error: no config was provided\n") ;
         return -1; 
     }
-    if (!config->handler)
+    if (!config->router)
     {
-        fprintf(stderr, "Error: No HTTP handler set in config\n"); 
+        fprintf(stderr, "Error: No router provided in config\n"); 
         return -1; 
     }
 

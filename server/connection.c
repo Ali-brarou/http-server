@@ -29,7 +29,7 @@ static Http_connection_t* http_connection_create(int client_fd, Http_timer_t* ti
     }
     memset(con, 0, sizeof(Http_connection_t)); 
     con->client_fd = client_fd; 
-    con->handler = cfg->handler; 
+    con->router = cfg->router; 
 
     if (http_timer_add_timeout(timer, con, HTTP_CLIENT_TIMEOUT) == -1)
     {
@@ -197,7 +197,18 @@ static int buffer_process(Http_connection_t* con)
                 /* make the handler create a response */ 
                 Http_response_t response; 
                 memset(&response, 0, sizeof response); 
-                if (con->handler(&con->request, &response) == HTTP_HANDLER_ERR)
+
+                Http_handler handler = http_router_find(con->router, 
+                                                        con->request.method,
+                                                        con->request.path); 
+
+                /* router didn't find a handler */ 
+                if (!handler)
+                {
+                    write_error_response(con, HTTP_NOT_FOUND); 
+                }
+
+                if (handler(&con->request, &response) == HTTP_HANDLER_ERR)
                 {
                     write_error_response(con, HTTP_INTERNAL_SERVER_ERROR); 
                     return -1; 

@@ -8,7 +8,7 @@
 #include "http_response.h"
 #include "epoll_utils.h"
 #include "timer.h"
-#include "http_handler.h"
+#include "router.h"
 
 /* forward declaration */ 
 typedef struct Http_epoll_item_s Http_epoll_item_t; 
@@ -25,21 +25,21 @@ typedef struct Http_epoll_item_s Http_epoll_item_t;
 #define HTTP_FLAG_SHOULD_CLOSE      0x08 
 #define HTTP_FLAG_CLOSING           0x10
 
-#define HTTP_GET_READ_STATE(flags)  ((flags) & HTTP_READ_STATE_MASK)
+#define HTTP_GET_READ_STATE(flags)      ((flags) & HTTP_READ_STATE_MASK)
 #define HTTP_SET_READ_STATE(flags, state) \
     do { \
         (flags) = ((flags) & ~HTTP_READ_STATE_MASK) | ((state) & HTTP_READ_STATE_MASK); \
     } while (0) \
 
-#define HTTP_SET_WRITING(flags)     ((flags) |= HTTP_FLAG_WRITING)
-#define HTTP_IS_WRITING(flags)      ((flags) & HTTP_FLAG_WRITING)   
-#define HTTP_CLEAR_WRITING(flags)   ((flags) &= ~HTTP_FLAG_WRITING)   
+#define HTTP_SET_WRITING(flags)         ((flags) |= HTTP_FLAG_WRITING)
+#define HTTP_IS_WRITING(flags)          ((flags) & HTTP_FLAG_WRITING)   
+#define HTTP_CLEAR_WRITING(flags)       ((flags) &= ~HTTP_FLAG_WRITING)   
 
 #define HTTP_SET_SHOULD_CLOSE(flags)    ((flags) |= HTTP_FLAG_SHOULD_CLOSE)
 #define HTTP_SHOULD_CLOSE(flags)        ((flags) & HTTP_FLAG_SHOULD_CLOSE)
 
-#define HTTP_SET_CLOSING(flags)     ((flags) |= HTTP_FLAG_CLOSING)
-#define HTTP_IS_CLOSING(flags)      ((flags) & HTTP_FLAG_CLOSING)   
+#define HTTP_SET_CLOSING(flags)         ((flags) |= HTTP_FLAG_CLOSING)
+#define HTTP_IS_CLOSING(flags)          ((flags) & HTTP_FLAG_CLOSING)   
 
 typedef struct Http_connection_s {
     int     client_fd; 
@@ -57,7 +57,7 @@ typedef struct Http_connection_s {
 
     uint8_t flags;  
 
-    Http_handler handler; 
+    Http_router_t* router;  
 } Http_connection_t; 
 
 void http_connection_accept(Http_server_context_t* ctx); 

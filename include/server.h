@@ -1,6 +1,7 @@
 #ifndef SERVER_H
 #define SERVER_H
 
+#include "router.h"
 #include "server_context.h"
 #include "config.h"
 #include "utils.h"

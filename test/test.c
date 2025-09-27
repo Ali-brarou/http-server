@@ -18,9 +18,23 @@ int main(int argc, char* argv[])
 {
     signal(SIGINT, sigint_handler); /* will call http_trigger_shutdown() */ 
 
+    /* preparing routing */ 
+    Http_router_t router; 
+    if (http_router_init(&router) == -1)
+    {
+        fprintf(stderr, "Error : failed to init the server\n"); 
+        return EXIT_FAILURE; 
+    }
+    if (http_route_register(&router, HTTP_METHOD_GET, "/", handler) == -1)
+    {
+        fprintf(stderr, "Error : failed to register a route\n"); 
+        return EXIT_FAILURE; 
+
+    }
+
     /* preparing the config */ 
     Http_config_t config = HTTP_DEFAULT_CONFIG; 
-    config.handler = &handler; 
+    config.router = &router; 
     parse_arguments(argc, argv, &config); 
     /* server context */ 
     Http_server_context_t server_context; 
@@ -33,6 +47,7 @@ int main(int argc, char* argv[])
 
     http_server_run(&server_context); 
     http_server_clean(&server_context); 
+    http_router_clean(&router); 
 
     return EXIT_SUCCESS; 
 }

@@ -1,7 +1,8 @@
-- add routing
-- improve error responses
+- find why connection close after a long duration
 - potentiel use after free if both timeout and user handle happened at the same time
+- improve error responses
 - handle https (openssl)
+- better routing ds (maybe add dynamic routing)
 - better testing
 - clean up code ? 
 - maybe do some optimization for the heap allocation 

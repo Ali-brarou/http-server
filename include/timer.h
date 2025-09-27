@@ -15,15 +15,13 @@ typedef enum Http_timer_event_flag_e {
 
 /* a timeout event */ 
 /* the timer will responsible for tracking timeout_index in the connection */ 
-typedef struct Http_timer_event_s
-{
+typedef struct Http_timer_event_s {
     time_t timeout; 
     Http_connection_t* con; 
     Http_timer_event_flag_t flag;  
 } Http_timer_event_t; 
 
-typedef struct Http_timer_s
-{
+typedef struct Http_timer_s {
     int fd; 
     Http_timer_event_t* events; 
     size_t events_count;  

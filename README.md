@@ -137,7 +137,7 @@ This project is under active development. Contributions, feedback, and bug repor
 
 ## License
 
-GPLv3
+LGPL
 
 ---
 

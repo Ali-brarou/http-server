@@ -4,7 +4,7 @@
 #include <strings.h> 
 #include <stdio.h> /* debug */ 
 
-#include <http_parser.h>
+#include <loom/http_parser.h>
 
 static const Http_method_mapping_t http_methods_table[] = {
     { HTTP_METHOD_GET,     "GET"     },

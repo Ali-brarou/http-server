@@ -6,7 +6,7 @@
 #include <sys/epoll.h> 
 #include <sys/eventfd.h> 
 
-#include <epoll_utils.h>
+#include <loom/epoll_utils.h>
 
 int http_epoll_create_instance(void)
 {

@@ -4,7 +4,7 @@ set -e
 HOST=${1:-127.0.0.1}
 PORT=${2:-6969}
 
-make
+gcc test.c -O2 -lloom -o server
 ./server -H $HOST -p $PORT &
 SERVER_PID=$!
 
@@ -12,7 +12,7 @@ cleanup() {
     echo "Stoping server..."
     kill $SERVER_PID 2>/dev/null || true
     wait $SERVER_PID 2>/dev/null || true
-    make clean
+    rm server
 }
 trap cleanup EXIT
 

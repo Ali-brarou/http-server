@@ -4,7 +4,7 @@
 #include <sys/eventfd.h> 
 #include <unistd.h> 
 
-#include <shutdown.h>
+#include <loom/shutdown.h>
 
 int http_shutdown_setup(int epoll_fd)
 {

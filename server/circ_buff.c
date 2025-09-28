@@ -1,5 +1,6 @@
-#include <circ_buff.h> 
 #include <assert.h> 
+
+#include <loom/circ_buff.h> 
 
 #define IS_POW_OF_TWO(n) ((n) && !((n) & ((n)-1)))
 

@@ -4,7 +4,7 @@
 #include <stdlib.h> 
 #include <signal.h> 
 
-#include <server.h>
+#include <loom/server.h>
 
 void print_help(char* program_name); 
 void parse_arguments(int argc, char* argv[], Http_config_t* config); 

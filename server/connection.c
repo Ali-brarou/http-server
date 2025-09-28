@@ -11,7 +11,7 @@
 #include <netinet/in.h>
 #include <unistd.h> 
 
-#include <connection.h>
+#include <loom/connection.h>
 
 static Http_connection_t* http_connection_create(int client_fd, Http_timer_t* timer, Http_config_t* cfg); 
 static int buffer_process(Http_connection_t* con); 

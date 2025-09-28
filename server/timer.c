@@ -4,8 +4,8 @@
 #include <sys/timerfd.h> 
 #include <unistd.h> 
 
-#include <timer.h>
-#include <epoll_utils.h>
+#include <loom/timer.h>
+#include <loom/epoll_utils.h>
 
 #define ROOT 0
 #define PARENT(i) (((i) - 1) >> 1)

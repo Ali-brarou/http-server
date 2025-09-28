@@ -1,7 +1,7 @@
 import socket
 
-HOST = "127.0.0.1"   # your server address
-PORT = 6969 # your server port
+HOST = "127.0.0.1"
+PORT = 6969
 
 def send_request(sock, path):
     req = (

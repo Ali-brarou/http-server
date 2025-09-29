@@ -156,9 +156,7 @@ static int buffer_process(Http_connection_t* con)
                 if (!end)
                 {
                     if (con->buff_len >= HTTP_REQUEST_SIZE)
-                    {
                         write_error_response(con, HTTP_PAYLOAD_TOO_LARGE); 
-                    }
                     return -1; 
                 }
                 
@@ -188,9 +186,9 @@ static int buffer_process(Http_connection_t* con)
             case HTTP_READING_BODY: 
             /* succesfully recieved full body */  
             if (con->buff_len - con->header_len >= con->body_len) 
-            {
                 HTTP_SET_READ_STATE(con->flags, HTTP_REQUEST_READY); 
-            }
+            else 
+                return -1; 
             break; 
             case HTTP_REQUEST_READY: 
             {
